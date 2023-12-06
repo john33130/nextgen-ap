@@ -1,0 +1,47 @@
+datasource db {
+    provider = "postgresql"
+    url      = env("DB_CONNECTION_URL")
+}
+
+generator client {
+    provider = "prisma-client-js"
+}
+
+model User {
+    userId           String    @id @unique @db.Char(8)
+    createdAt        DateTime  @default(now())
+    name             String    @db.VarChar(64)
+    email            String    @unique @db.VarChar(254)
+    password         String
+    activated        Boolean   @default(false) // has user verified email and activated account?
+    deactivated      Boolean   @default(false) // has user deactivate their account?
+    deactivationDate DateTime?
+    devices          Device[]
+
+    @@map("users")
+}
+
+model Device {
+    deviceId         String     @id @unique @db.Char(8)
+    createdAt        DateTime   @default(now())
+    name             String     @db.VarChar(32)
+    emoji            String     @default("🌊")
+    accessKey        String
+    owner            User?      @relation(fields: [ownerId], references: [userId])
+    ownerId          String?    @db.Char(8)
+    updatedAt        DateTime   @default(now()) // last moment when measurements where captured
+    batteryLevel     Int?
+    coordinates      Json       @default("{\"lat\": \"\", \"long\": \"\"}")
+    ph               Decimal?
+    tds              Int?
+    waterTemperature Decimal?
+    turbidity        Int?
+    risk             RiskFactor @default(UNKNOWN)
+}
+
+enum RiskFactor {
+    HIGH
+    MODERATE
+    LOW
+    UNKNOWN // used when measurements are (partly) missing
+}

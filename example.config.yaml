@@ -1,0 +1,13 @@
+logs:
+        level: http
+        files:
+                enabled: true
+                directory: ./logs
+                keepFor: 7
+auth:
+        expiresIn: 259200000 # 3 days
+cache:
+        keepFor: 300000 # 5 minutes
+rateLimit:
+        interval: 60000 # 1 minute
+        tokens: 30
