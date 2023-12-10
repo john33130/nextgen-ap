@@ -50,7 +50,15 @@ export default {
 
 				const { userId } = req.params as { userId: string };
 
-				const oldUser = (await prisma.user.findUnique({ where: { userId } })) as User; // get old user data
+				let oldUser: User | null;
+
+				try {
+					oldUser = (await prisma.user.findUnique({ where: { userId } })) as User; // get old user data
+				} catch (error) {
+					const uuid = randomUUID();
+					const message = errors.UnexpectedError.noDatabaseConnection();
+					return next(new UnexpectedError(message, { uuid, error }));
+				}
 
 				// check if name is different
 				if (oldUser.name === body.update.name) {

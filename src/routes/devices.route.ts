@@ -9,7 +9,7 @@ router.get('/:deviceId/credentials', validateToken, checkAccessToDevice, control
 router.patch('/:deviceId/credentials', validateToken, checkAccessToDevice, controller['[deviceId]'].credentials.patch);
 router.get('/', controller.get); // get all device measurements
 router.get('/:deviceId/measurements', controller['[deviceId]'].measurements.get);
-router.post('/:deviceId/measurements', controller['[deviceId]'].measurements.post);
-router.get('/nearest-device', checkAccessKey, controller['nearest-device'].get);
+router.post('/:deviceId/measurements', checkAccessKey, controller['[deviceId]'].measurements.post);
+router.get('/nearest', controller.nearest.get);
 
 export default router;

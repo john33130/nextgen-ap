@@ -1,5 +1,5 @@
 import { NextFunction, Response, Request } from 'express';
-import crypto, { randomUUID } from 'crypto';
+import { randomBytes, randomUUID } from 'crypto';
 import ms from 'ms';
 import jwt from 'jsonwebtoken';
 import { User } from '@prisma/client';
@@ -24,11 +24,18 @@ import nodemailer from '../config/nodemailer';
 export default {
 	signup: {
 		post: async (req: Request, res: Response, next: NextFunction) => {
+			// check if user is already logged in
+			const decodedToken = jwt.decode(req.cookies.token) as jwt.JwtPayload & { userId: string };
+			if (req.cookies.token && decodedToken.exp && decodedToken.exp > Math.floor(Date.now() / 1000)) {
+				const uuid = randomUUID();
+				return next(new AlreadyLoggedInError({ uuid }));
+			}
+
 			// validate body
 			const preValidationBody: AuthSignupBody<false> = req.body;
 			const valid = validateSignupBody(preValidationBody);
 			if (valid instanceof Error) {
-				const uuid = crypto.randomUUID();
+				const uuid = randomUUID();
 				return next(new InvalidParameterError(valid.message, { uuid }));
 			}
 
@@ -41,17 +48,17 @@ export default {
 			try {
 				user = await prisma.user.findUnique({ where: { email: body.email } });
 			} catch (error) {
-				const uuid = crypto.randomUUID();
+				const uuid = randomUUID();
 				const message = errors.UnexpectedError.noDatabaseConnection();
 				return next(new UnexpectedError(message, { uuid, error }));
 			}
 
 			if (user || (await keyv.has(`verify-emails/${body.email}`))) {
-				const uuid = crypto.randomUUID();
+				const uuid = randomUUID();
 				return next(new EmailAlreadyExistsError({ uuid }));
 			}
 
-			const userId = crypto.randomBytes(4).toString('hex'); // generate userId
+			const userId = randomBytes(4).toString('hex'); // generate userId
 
 			// save user as temporary user
 			const temporaryUser: TemporaryUser = {
@@ -85,12 +92,9 @@ export default {
 
 	login: {
 		post: async (req: Request, res: Response, next: NextFunction) => {
-			// make sure user is not already logged in
-			// also we need to check if token has expired because otherwise user would loop infinite
-			const decodedToken = jwt.decode(req.cookies.token) as
-				| undefined
-				| (jwt.JwtPayload & { userId: string });
-			if (decodedToken?.exp && decodedToken.exp < Date.now()) {
+			// check if user is already logged in
+			const decodedToken = jwt.decode(req.cookies.token) as jwt.JwtPayload & { userId: string };
+			if (req.cookies.token && decodedToken.exp && decodedToken.exp > Math.floor(Date.now() / 1000)) {
 				const uuid = randomUUID();
 				return next(new AlreadyLoggedInError({ uuid }));
 			}
@@ -99,7 +103,7 @@ export default {
 			const preValidationBody: AuthLoginBody<false> = req.body;
 			const valid = validateLoginBody(preValidationBody);
 			if (valid instanceof Error) {
-				const uuid = crypto.randomUUID();
+				const uuid = randomUUID();
 				return next(new InvalidParameterError(valid.message, { uuid }));
 			}
 
@@ -112,13 +116,13 @@ export default {
 			try {
 				user = await prisma.user.findUnique({ where: { email: body.email } });
 			} catch (error) {
-				const uuid = crypto.randomUUID();
+				const uuid = randomUUID();
 				const message = errors.UnexpectedError.noDatabaseConnection();
 				return next(new UnexpectedError(message, { uuid, error }));
 			}
 
 			if (!user) {
-				const uuid = crypto.randomUUID();
+				const uuid = randomUUID();
 				const message = errors.UserNotFoundError.noEmailMatch(body.email);
 				return next(new UserNotFoundError(message, { uuid }));
 			}
@@ -126,7 +130,7 @@ export default {
 			// check if given credentials match
 			const credentialsMatch = await validateCredentials(body.email, body.password);
 			if (!credentialsMatch) {
-				const uuid = crypto.randomUUID();
+				const uuid = randomUUID();
 				const message = errors.UnauthorizedError.invalidUserCredentials();
 				return next(new UnauthorizedError(message, { uuid }));
 			}
@@ -143,7 +147,7 @@ export default {
 			const preValidationToken = req.query.token;
 			const tokenValid = validateActivateToken(preValidationToken, false);
 			if (tokenValid instanceof Error) {
-				const uuid = crypto.randomUUID();
+				const uuid = randomUUID();
 				return next(new InvalidParameterError(tokenValid.message, { uuid }));
 			}
 
@@ -153,7 +157,7 @@ export default {
 			// check if token is already registered
 			const tokenCacheKey = `tokens/verify-email:${token};`;
 			if (await keyv.has(tokenCacheKey)) {
-				const uuid = crypto.randomUUID();
+				const uuid = randomUUID();
 				return next(new UnauthorizedError(errors.UnauthorizedError.invalidToken(), { uuid }));
 			}
 
@@ -161,14 +165,14 @@ export default {
 			jwt.verify(token, process.env.ENCRYPTION_KEY, async (jwtError, preValidationDecodedToken) => {
 				// check if session is still valid
 				if (jwtError instanceof jwt.TokenExpiredError) {
-					const uuid = crypto.randomUUID();
+					const uuid = randomUUID();
 					const message = errors.UnauthorizedError.tokenExpired('register');
 					return next(new UnauthorizedError(message, { uuid }));
 				}
 
 				// handle other error
 				if (jwtError instanceof jwt.JsonWebTokenError) {
-					const uuid = crypto.randomUUID();
+					const uuid = randomUUID();
 					const message = errors.UnauthorizedError.invalidToken();
 					return next(new UnauthorizedError(message, { uuid, error: jwtError }));
 				}
@@ -176,7 +180,7 @@ export default {
 				// validate decoded token
 				const decodedTokenValid = validateActivateToken(preValidationDecodedToken, true);
 				if (decodedTokenValid instanceof Error) {
-					const uuid = crypto.randomUUID();
+					const uuid = randomUUID();
 					return next(new InvalidParameterError(decodedTokenValid.message, { uuid }));
 				}
 
@@ -189,7 +193,7 @@ export default {
 				const userCacheKey = `cache/temp-user:${decoded.userId}`;
 				const data: TemporaryUser | undefined = await keyv.get(userCacheKey);
 				if (!data) {
-					const uuid = crypto.randomUUID();
+					const uuid = randomUUID();
 					const message = errors.UnexpectedError.noCacheUser();
 					return next(new UnexpectedError(message, { uuid }));
 				}
@@ -198,7 +202,7 @@ export default {
 				try {
 					await prisma.user.create({ data: { ...data, activated: true } });
 				} catch (error) {
-					const uuid = crypto.randomUUID();
+					const uuid = randomUUID();
 					const message = errors.UnexpectedError.noDatabaseConnection();
 					return next(new UnexpectedError(message, { uuid, error }));
 				}

@@ -2,8 +2,16 @@ import { Request, Response, NextFunction } from 'express';
 import { randomUUID } from 'crypto';
 import jwt from 'jsonwebtoken';
 import Cryptr from 'cryptr';
+import { Device } from '@prisma/client';
 import { validateAccessId, validateDeviceId } from '../schemas/devices.schema';
-import { DeviceNotFoundError, ForbiddenError, InvalidParameterError, UnauthorizedError, errors } from '../lib/errors';
+import {
+	DeviceNotFoundError,
+	ForbiddenError,
+	InvalidParameterError,
+	UnauthorizedError,
+	UnexpectedError,
+	errors,
+} from '../lib/errors';
 import prisma from '../config/prisma';
 
 const { decrypt } = new Cryptr(process.env.ENCRYPTION_KEY);
@@ -26,7 +34,15 @@ export async function checkAccessToDevice(req: Request, res: Response, next: Nex
 	// change type
 	const { deviceId } = req.params as { deviceId: string };
 
-	const device = await prisma.device.findUnique({ where: { deviceId } });
+	let device: Device | null;
+
+	try {
+		device = await prisma.device.findUnique({ where: { deviceId } });
+	} catch (error) {
+		const uuid = randomUUID();
+		const message = errors.UnexpectedError.noDatabaseConnection();
+		return next(new UnexpectedError(message, { uuid }));
+	}
 
 	// check if device exists
 	if (!device) {
@@ -54,51 +70,7 @@ export async function checkAccessToDevice(req: Request, res: Response, next: Nex
  * @param res - The response object
  * @param next - The next function
  */
-export function checkAccessKey(req: Request, res: Response, next: NextFunction) {
-	// validate access key
-	const preValidationAccessKey = req.query.accessKey;
-	const validation = validateAccessId(preValidationAccessKey);
-	if (validation instanceof Error) {
-		const uuid = randomUUID();
-		return next(new ForbiddenError(validation.message, { uuid }));
-	}
-
-	// change type
-	const { accessKey } = req.query as { accessKey: string };
-
-	// verify access key
-	jwt.verify(accessKey, process.env.ENCRYPTION_KEY, async (error) => {
-		// handle errors
-		if (error instanceof jwt.JsonWebTokenError) {
-			const uuid = randomUUID();
-			return next(new UnauthorizedError(errors.UnauthorizedError.invalidToken(), { uuid }));
-		}
-
-		const decoded = jwt.decode(accessKey) as jwt.JwtPayload & { deviceId: string };
-		const device = await prisma.device.findUnique({
-			where: { deviceId: decoded.deviceId },
-			select: { accessKey: true },
-		});
-
-		// check if device exists
-		if (!device) {
-			const uuid = randomUUID();
-			const message = errors.DeviceNotFoundError.noDeviceIdMatch(decoded.deviceId);
-			return next(new DeviceNotFoundError(message, { uuid }));
-		}
-
-		// check if tokens amtch
-		if (decrypt(device.accessKey) !== accessKey) {
-			const uuid = randomUUID();
-			const message = errors.ForbiddenError.noPermissionToDevice();
-			return next(new ForbiddenError(message, { uuid }));
-		}
-
-		return true;
-	});
-
-	return next();
-}
+export function checkAccessKey(req: Request, res: Response, next: NextFunction) {}
 
 /**
  * TODO:

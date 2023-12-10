@@ -24,7 +24,7 @@ model User {
 model Device {
     deviceId         String     @id @unique @db.Char(8)
     createdAt        DateTime   @default(now())
-    name             String     @db.VarChar(32)
+    name             String?    @db.VarChar(32)
     emoji            String     @default("🌊")
     accessKey        String
     owner            User?      @relation(fields: [ownerId], references: [userId])

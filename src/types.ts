@@ -93,21 +93,14 @@ export type AuthSignupBody<V extends boolean> = V extends true
 			email: string;
 			password: string;
 	  }
-	: Partial<{
-			name: string;
-			email: string;
-			password: string;
-	  }>;
+	: unknown;
 
 export type AuthLoginBody<V extends boolean> = V extends true
 	? {
 			email: string;
 			password: string;
 	  }
-	: {
-			email: unknown;
-			password: unknown;
-	  };
+	: unknown;
 
 export type PatchUserCredentialsBody<V extends boolean> = V extends true
 	? {
@@ -118,10 +111,7 @@ export type PatchUserCredentialsBody<V extends boolean> = V extends true
 			};
 			password: string;
 	  }
-	: {
-			update: unknown;
-			password: unknown;
-	  };
+	: unknown;
 
 export type PatchDeviceCredentialsBody<V extends boolean> = V extends true
 	? {
@@ -130,9 +120,7 @@ export type PatchDeviceCredentialsBody<V extends boolean> = V extends true
 				emoji?: string;
 			};
 	  }
-	: {
-			update: unknown;
-	  };
+	: unknown;
 
 export type PostDeviceMeasurementsBody<V extends boolean> = V extends true
 	? {
@@ -146,9 +134,14 @@ export type PostDeviceMeasurementsBody<V extends boolean> = V extends true
 				long: string;
 			};
 	  }
-	: {
-			[key: string]: unknown;
-	  };
+	: unknown;
+
+export type GetNearestLocationBody<V extends boolean> = V extends true
+	? {
+			lat: number;
+			long: number;
+	  }
+	: unknown;
 
 export interface TemporaryUser {
 	userId: string;
@@ -174,3 +167,9 @@ export interface DeviceMeasurements {
 export type DeviceCredentials = Omit<Device, keyof DeviceMeasurements>;
 
 export type RiskLevel = 'HIGH' | 'MODERATE' | 'LOW' | 'UNKNOWN';
+
+export interface Location {
+	name: string;
+	lat: number;
+	long: number;
+}

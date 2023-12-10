@@ -72,3 +72,15 @@ export function validatePostMeasurementsBody(body: unknown) {
 
 	return schema.validate(body).error;
 }
+
+export function validateGetNearestBody(body: unknown) {
+	const schema = Joi.object({
+		lat: Joi.number().label('Latitude').required(),
+		long: Joi.number().label('Longitude').required(),
+	}).messages({
+		'string.required': errors.InvalidParameterError.isRequired('Access Key'),
+		'string.base': errors.InvalidParameterError.invalidType('Access Key', 'string'),
+	});
+
+	return schema.validate(body).error;
+}
