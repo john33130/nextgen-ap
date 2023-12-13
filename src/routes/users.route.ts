@@ -7,6 +7,5 @@ const router = Router();
 
 router.get('/:userId/credentials', validateToken, checkAccessToUser, controller['[userId]'].credentials.get);
 router.patch('/:userId/credentials', validateToken, checkAccessToUser, controller['[userId]'].credentials.patch);
-router.delete('/:userId', validateToken, checkAccessToUser, controller['[userId]'].delete);
 
 export default router;

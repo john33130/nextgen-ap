@@ -1,13 +1,25 @@
 import { Device } from '@prisma/client';
-import { Request, Response, NextFunction, Locals } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { randomUUID } from 'crypto';
 import containsEmoji from 'contains-emoji';
 import nearbySort from 'nearby-sort';
+import jwt from 'jsonwebtoken';
 import prisma from '../config/prisma';
 import { InvalidParameterError, UnexpectedError, errors } from '../lib/errors';
-import { getDeviceCredentials, removeSensitiveDataFromDevice } from '../helpers/devices.helpers';
-import { DeviceMeasurements, GetNearestLocationBody, Location, PatchDeviceCredentialsBody } from '../types';
-import { validateGetNearestBody, validatePatchDeviceBody } from '../schemas/devices.schema';
+import { calculateRisk, getDeviceCredentials, removeSensitiveDataFromDevice } from '../helpers/devices.helpers';
+import {
+	DeviceMeasurements,
+	GetNearestLocationBody,
+	Location,
+	PatchDeviceCredentialsBody,
+	PostDeviceMeasurementsBody,
+} from '../types';
+import {
+	validateGetNearestBody,
+	validatePatchDeviceBody,
+	validatePostMeasurementsBody,
+} from '../schemas/devices.schema';
+import logger from '../config/logger';
 
 export default {
 	'[deviceId]': {
@@ -150,10 +162,45 @@ export default {
 					return next(new UnexpectedError(message, { uuid, error }));
 				}
 
-				res.status(200).json(measurements);
+				return res.status(200).json(measurements);
 			},
 
-			post: (req: Request, res: Response, next: NextFunction) => {},
+			post: async (req: Request, res: Response, next: NextFunction) => {
+				// validate body
+				const preValidationBody: PostDeviceMeasurementsBody<false> = req.body;
+				const bodyIsValid = validatePostMeasurementsBody(preValidationBody);
+				if (bodyIsValid instanceof Error) {
+					const uuid = randomUUID();
+					return next(new InvalidParameterError(bodyIsValid.message, { uuid }));
+				}
+
+				// change type
+				const { body } = req as { body: PostDeviceMeasurementsBody<true> };
+
+				// calculate risk
+				const risk = calculateRisk(body.tds, body.waterTemperature, body.turbidity, body.ph);
+
+				// decode token
+				const decoded = jwt.decode(req.cookies.token) as jwt.JwtPayload & { deviceId: string };
+
+				try {
+					await prisma.device.update({
+						where: { deviceId: decoded.deviceId },
+						data: {
+							...body,
+							risk,
+						},
+					});
+				} catch (error) {
+					const uuid = randomUUID();
+					const message = errors.UnexpectedError.noDatabaseConnection();
+					return next(new UnexpectedError(message, { uuid, error }));
+				}
+
+				logger.info('Update device with new measurements', { deviceId: decoded.deviceId }); // log info
+
+				return res.send(200).json({ message: 'Updated device information' });
+			},
 		},
 	},
 
@@ -172,19 +219,54 @@ export default {
 
 			const locations: Location[] = []; // initalize array
 
-			let devices: { coordinaties: OmitM<Location, 'name'> } | null;
-
 			// get all locations
 			try {
+				(
+					await prisma.device.findMany({ select: { coordinates: true, location: true } })
+				).forEach((device) => {
+					if (
+						!device.coordinates ||
+						typeof device.coordinates !== 'object' ||
+						Array.isArray(device.coordinates) ||
+						!device.coordinates.lat ||
+						device.coordinates.long ||
+						typeof device.coordinates.lat !== 'number' ||
+						typeof device.coordinates.long !== 'number' ||
+						!device.location
+					) {
+						return 0;
+					}
+
+					// actual code
+					return locations.push({
+						lat: device.coordinates.lat,
+						long: device.coordinates.long,
+						name: device.location,
+					});
+				});
 			} catch (error) {
 				const uuid = randomUUID();
 				const message = errors.UnexpectedError.noDatabaseConnection();
 				return next(new UnexpectedError(message, { uuid, error }));
 			}
 
-			const closest: Location = (await nearbySort({ lat: 4, long: 4 }, locations))[0];
+			const closest: Location = (await nearbySort(body, locations))[0];
+
+			return res.status(200).json(closest);
 		},
 	},
 
-	get: (req: Request, res: Response, next: NextFunction) => {},
+	get: async (req: Request, res: Response, next: NextFunction) => {
+		let devices: { deviceId: string }[] = [];
+
+		try {
+			devices = await prisma.device.findMany({ select: { deviceId: true } });
+		} catch (error) {
+			const uuid = randomUUID();
+			const message = errors.UnexpectedError.noDatabaseConnection();
+			return next(new UnexpectedError(message, { uuid, error }));
+		}
+
+		return res.status(200).json(devices);
+	},
 };

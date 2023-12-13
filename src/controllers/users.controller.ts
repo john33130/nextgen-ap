@@ -129,17 +129,5 @@ export default {
 				});
 			},
 		},
-
-		delete: (req: Request, res: Response, next: NextFunction) => {
-			/**
-			 * Proces:
-			 * 1. User request delete
-			 * 2. User gets send an email with route /delete?token=<TOKEN>
-			 * 3. Validate token and stop if not valid (anymore)
-			 * 4. Set `deactivated` and `deactivationDate` in database
-			 * 5. Log user out
-			 * 6. Return to user 200 OK
-			 */
-		},
 	},
 };

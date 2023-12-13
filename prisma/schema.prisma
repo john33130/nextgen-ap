@@ -33,6 +33,7 @@ model Device {
     batteryLevel     Int?
     coordinates      Json       @default("{\"lat\": \"\", \"long\": \"\"}")
     ph               Decimal?
+    location         String?
     tds              Int?
     waterTemperature Decimal?
     turbidity        Int?

@@ -32,7 +32,6 @@ export interface ConfigOptions {
 
 export interface CustomLogMethodMetaData {
 	[key: string]: unknown;
-	service?: string;
 	error?: Error;
 	uuid?: string;
 }
@@ -130,8 +129,8 @@ export type PostDeviceMeasurementsBody<V extends boolean> = V extends true
 			waterTemperature?: number;
 			batteryLevel: number;
 			coordinates: {
-				lat: string;
-				long: string;
+				lat: number;
+				long: number;
 			};
 	  }
 	: unknown;

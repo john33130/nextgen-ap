@@ -68,28 +68,6 @@ export default () => {
 
 	app.set('json spaces', 2); // make json text formatted
 
-	// start cron job to delete users
-	new CronJob(
-		'0 0 * * *',
-		async () => {
-			(
-				await prisma.user.findMany({
-					where: { deactivated: { equals: true } },
-					select: { userId: true, deactivationDate: true },
-				})
-			).forEach(async (user) => {
-				// calculate if user should be deleted
-				const targetDate = dayjs(user.deactivationDate);
-				const lastWeekDate = dayjs().subtract(30, 'days');
-				if (targetDate.isBefore(lastWeekDate) || targetDate.isSame(lastWeekDate)) {
-					await prisma.user.delete({ where: user });
-					logger.info('Deleted a user from the database', { userId: user.userId });
-				}
-			});
-		},
-		null
-	).start();
-
 	const server = http.createServer(app);
 
 	// start server
